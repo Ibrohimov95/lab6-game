@@ -1,0 +1,1090 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Lab №6 — 3D O'yin | Three.js</title>
+  <style>
+    /* =============================================
+       ASOSIY STILLAR — O'yin interfeysi
+       ============================================= */
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;600&display=swap');
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      background: #000;
+      font-family: 'Rajdhani', sans-serif;
+      overflow: hidden;
+      color: #fff;
+    }
+
+    /* Three.js canvas */
+    #gameCanvas { display: block; width: 100vw; height: 100vh; }
+
+    /* =============================================
+       LOADING EKRANI
+       ============================================= */
+    #loadingScreen {
+      position: fixed; inset: 0;
+      background: linear-gradient(135deg, #0a0a1a 0%, #0d1b2a 50%, #1a0a2e 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 1000;
+      transition: opacity 0.8s ease;
+    }
+    #loadingScreen h1 {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(1.5rem, 4vw, 3rem);
+      font-weight: 900;
+      letter-spacing: 0.2em;
+      background: linear-gradient(90deg, #00d4ff, #7b2fff, #ff006e);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+    #loadingScreen p {
+      color: #8892b0; font-size: 0.9rem; letter-spacing: 0.1em;
+      margin-bottom: 40px;
+    }
+    .loader-bar-wrap {
+      width: 300px; height: 4px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px; overflow: hidden;
+    }
+    .loader-bar {
+      height: 100%; width: 0%;
+      background: linear-gradient(90deg, #00d4ff, #7b2fff);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+      animation: loadAnim 2s ease forwards;
+    }
+    @keyframes loadAnim {
+      0%   { width: 0% }
+      60%  { width: 80% }
+      100% { width: 100% }
+    }
+    .loader-hint {
+      margin-top: 16px; color: #64ffda;
+      font-size: 0.8rem; letter-spacing: 0.15em;
+      animation: blink 1.2s ease infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+
+    /* =============================================
+       BOSH MENYU
+       ============================================= */
+    #mainMenu {
+      position: fixed; inset: 0;
+      background: linear-gradient(135deg, rgba(10,10,26,0.97) 0%, rgba(13,27,42,0.97) 100%);
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 900;
+    }
+    #mainMenu h1 {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(2rem, 5vw, 4rem);
+      font-weight: 900;
+      background: linear-gradient(135deg, #00d4ff 0%, #7b2fff 50%, #ff006e 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-align: center;
+      line-height: 1.1;
+      margin-bottom: 8px;
+    }
+    #mainMenu .subtitle {
+      color: #64ffda; font-size: 0.85rem;
+      letter-spacing: 0.25em; text-transform: uppercase;
+      margin-bottom: 50px; opacity: 0.8;
+    }
+    .menu-btn {
+      background: transparent;
+      border: 2px solid rgba(0,212,255,0.4);
+      color: #00d4ff;
+      font-family: 'Orbitron', monospace;
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: 0.15em;
+      padding: 14px 48px;
+      margin: 8px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.3s ease;
+      position: relative;
+      overflow: hidden;
+      width: 260px;
+    }
+    .menu-btn::before {
+      content: '';
+      position: absolute; inset: 0;
+      background: linear-gradient(135deg, #00d4ff20, #7b2fff20);
+      transform: scaleX(0); transform-origin: left;
+      transition: transform 0.3s ease;
+    }
+    .menu-btn:hover::before { transform: scaleX(1); }
+    .menu-btn:hover {
+      border-color: #00d4ff;
+      box-shadow: 0 0 20px rgba(0,212,255,0.3);
+      color: #fff;
+    }
+    .menu-btn.primary {
+      background: linear-gradient(135deg, #00d4ff15, #7b2fff15);
+      border-color: #7b2fff;
+      color: #c8b4ff;
+    }
+    .menu-btn.primary:hover {
+      background: linear-gradient(135deg, #7b2fff40, #ff006e40);
+      border-color: #ff006e;
+      color: #fff;
+      box-shadow: 0 0 30px rgba(123,47,255,0.4);
+    }
+    .controls-info {
+      margin-top: 40px;
+      display: grid; grid-template-columns: repeat(2, 1fr);
+      gap: 8px 24px;
+      max-width: 340px;
+      text-align: center;
+    }
+    .ctrl-item {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 8px 12px; border-radius: 4px;
+      font-size: 0.78rem; color: #8892b0;
+    }
+    .ctrl-item kbd {
+      background: rgba(0,212,255,0.15);
+      border: 1px solid rgba(0,212,255,0.3);
+      color: #00d4ff; padding: 2px 6px;
+      border-radius: 3px; font-size: 0.75rem;
+      font-family: 'Orbitron', monospace;
+    }
+
+    /* =============================================
+       O'YIN HUD (HEAD-UP DISPLAY)
+       ============================================= */
+    #hud {
+      position: fixed; inset: 0;
+      pointer-events: none;
+      z-index: 100;
+      display: none;
+    }
+    /* Yuqori chap — skor */
+    .hud-score {
+      position: absolute; top: 20px; left: 24px;
+    }
+    .hud-score .label {
+      font-family: 'Orbitron', monospace;
+      font-size: 0.65rem; color: #64ffda;
+      letter-spacing: 0.2em; opacity: 0.7;
+    }
+    .hud-score .value {
+      font-family: 'Orbitron', monospace;
+      font-size: 2rem; font-weight: 900;
+      color: #fff; line-height: 1;
+    }
+
+    /* Yuqori o'ng — daraja */
+    .hud-level {
+      position: absolute; top: 20px; right: 24px;
+      text-align: right;
+    }
+    .hud-level .label {
+      font-family: 'Orbitron', monospace;
+      font-size: 0.65rem; color: #ff9f43;
+      letter-spacing: 0.2em; opacity: 0.7;
+    }
+    .hud-level .value {
+      font-family: 'Orbitron', monospace;
+      font-size: 2rem; font-weight: 900;
+      color: #ff9f43; line-height: 1;
+    }
+
+    /* Pastki chap — sog'liq */
+    .hud-health {
+      position: absolute; bottom: 28px; left: 24px;
+    }
+    .hud-health .label {
+      font-size: 0.65rem; color: #ff6b6b;
+      letter-spacing: 0.15em; margin-bottom: 6px;
+      font-family: 'Orbitron', monospace; opacity: 0.8;
+    }
+    .health-bar-bg {
+      width: 180px; height: 8px;
+      background: rgba(255,107,107,0.15);
+      border: 1px solid rgba(255,107,107,0.3);
+      border-radius: 4px; overflow: hidden;
+    }
+    .health-bar-fill {
+      height: 100%; width: 100%;
+      background: linear-gradient(90deg, #ff4757, #ff6b81);
+      border-radius: 4px;
+      transition: width 0.3s ease;
+      box-shadow: 0 0 8px rgba(255,107,107,0.5);
+    }
+
+    /* Pastki o'ng — energiya */
+    .hud-energy {
+      position: absolute; bottom: 28px; right: 24px;
+      text-align: right;
+    }
+    .hud-energy .label {
+      font-size: 0.65rem; color: #00d4ff;
+      letter-spacing: 0.15em; margin-bottom: 6px;
+      font-family: 'Orbitron', monospace; opacity: 0.8;
+    }
+    .energy-bar-bg {
+      width: 180px; height: 8px;
+      background: rgba(0,212,255,0.1);
+      border: 1px solid rgba(0,212,255,0.3);
+      border-radius: 4px; overflow: hidden;
+    }
+    .energy-bar-fill {
+      height: 100%; width: 80%;
+      background: linear-gradient(90deg, #00d4ff, #7b2fff);
+      border-radius: 4px;
+      transition: width 0.4s ease;
+      box-shadow: 0 0 8px rgba(0,212,255,0.5);
+    }
+
+    /* Markaziy xabar */
+    .hud-message {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(1rem, 3vw, 1.8rem);
+      font-weight: 900;
+      color: #64ffda;
+      text-align: center;
+      text-shadow: 0 0 20px rgba(100,255,218,0.5);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.4s ease;
+    }
+    .hud-message.show { opacity: 1; }
+
+    /* Burchakdagi mini xarita ko'rinishi */
+    .hud-minimap {
+      position: absolute; top: 20px;
+      left: 50%; transform: translateX(-50%);
+      font-family: 'Orbitron', monospace;
+      font-size: 0.75rem; color: #8892b0;
+      letter-spacing: 0.1em;
+      background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.08);
+      padding: 6px 16px; border-radius: 20px;
+    }
+
+    /* Pastki markazdagi boshqaruv ko'rsatmasi */
+    .hud-controls {
+      position: absolute; bottom: 28px;
+      left: 50%; transform: translateX(-50%);
+      display: flex; gap: 12px;
+      font-size: 0.7rem; color: #4a5568;
+      letter-spacing: 0.08em;
+    }
+    .hud-controls span {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.07);
+      padding: 4px 10px; border-radius: 3px;
+    }
+
+    /* =============================================
+       O'YIN TUGASH EKRANI
+       ============================================= */
+    #gameOver {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.92);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 800;
+    }
+    #gameOver h2 {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(2rem, 6vw, 4.5rem);
+      font-weight: 900;
+      color: #ff006e;
+      text-shadow: 0 0 40px rgba(255,0,110,0.5);
+      margin-bottom: 12px;
+    }
+    #gameOver .final-score {
+      font-family: 'Rajdhani', sans-serif;
+      font-size: 1.1rem; color: #8892b0;
+      margin-bottom: 8px;
+    }
+    #gameOver .final-score span {
+      color: #00d4ff; font-weight: 600;
+    }
+
+    /* =============================================
+       PAUSE MENYUSI
+       ============================================= */
+    #pauseMenu {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.85);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 700;
+      backdrop-filter: blur(4px);
+    }
+    #pauseMenu h2 {
+      font-family: 'Orbitron', monospace;
+      font-size: 2.5rem; font-weight: 900;
+      color: #fff; margin-bottom: 32px;
+      letter-spacing: 0.1em;
+    }
+
+    /* =============================================
+       YUTISH EKRANI
+       ============================================= */
+    #winScreen {
+      position: fixed; inset: 0;
+      background: rgba(0,0,0,0.9);
+      display: none; flex-direction: column;
+      align-items: center; justify-content: center;
+      z-index: 800;
+    }
+    #winScreen h2 {
+      font-family: 'Orbitron', monospace;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      font-weight: 900;
+      background: linear-gradient(90deg, #00d4ff, #64ffda);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 12px;
+    }
+    #winScreen .win-score {
+      font-size: 1rem; color: #8892b0;
+      margin-bottom: 32px;
+    }
+    #winScreen .win-score span { color: #64ffda; font-weight: 700; }
+
+    /* Umumiy yashirish */
+    .hidden { display: none !important; }
+  </style>
+</head>
+<body>
+
+<!-- ─── LOADING EKRANI ─────────────────────── -->
+<div id="loadingScreen">
+  <h1>SPACE RUNNER 3D</h1>
+  <p>Laboratoriya ishi №6 — 3D O'yin</p>
+  <div class="loader-bar-wrap"><div class="loader-bar"></div></div>
+  <div class="loader-hint">Yuklanmoqda...</div>
+</div>
+
+<!-- ─── BOSH MENYU ─────────────────────────── -->
+<div id="mainMenu" class="hidden">
+  <h1>SPACE<br>RUNNER 3D</h1>
+  <p class="subtitle">Laboratoriya №6 · Three.js · 3D O'yin</p>
+  <button class="menu-btn primary" onclick="startGame()">▶ O'YINNI BOSHLASH</button>
+  <button class="menu-btn" onclick="showControls()">⌨ BOSHQARUV</button>
+
+  <div class="controls-info">
+    <div class="ctrl-item"><kbd>W/↑</kbd> Oldinga</div>
+    <div class="ctrl-item"><kbd>S/↓</kbd> Orqaga</div>
+    <div class="ctrl-item"><kbd>A/←</kbd> Chapga</div>
+    <div class="ctrl-item"><kbd>D/→</kbd> O'ngga</div>
+    <div class="ctrl-item"><kbd>Space</kbd> Sakrash</div>
+    <div class="ctrl-item"><kbd>P</kbd> Pause</div>
+  </div>
+</div>
+
+<!-- ─── O'YIN HUD ──────────────────────────── -->
+<div id="hud">
+  <div class="hud-score">
+    <div class="label">BALL</div>
+    <div class="value" id="scoreDisplay">0000</div>
+  </div>
+
+  <div class="hud-level">
+    <div class="label">DARAJA</div>
+    <div class="value" id="levelDisplay">1</div>
+  </div>
+
+  <div class="hud-minimap" id="posDisplay">X: 0 · Z: 0</div>
+
+  <div class="hud-health">
+    <div class="label">● SALOM'AT</div>
+    <div class="health-bar-bg">
+      <div class="health-bar-fill" id="healthBar"></div>
+    </div>
+  </div>
+
+  <div class="hud-energy">
+    <div class="label">ENERGIYA ●</div>
+    <div class="energy-bar-bg">
+      <div class="energy-bar-fill" id="energyBar"></div>
+    </div>
+  </div>
+
+  <div class="hud-message" id="hudMessage"></div>
+
+  <div class="hud-controls">
+    <span>WASD — Harakat</span>
+    <span>SPACE — Sakrash</span>
+    <span>P — Pauza</span>
+  </div>
+</div>
+
+<!-- ─── PAUSE MENYUSI ──────────────────────── -->
+<div id="pauseMenu">
+  <h2>⏸ PAUZA</h2>
+  <button class="menu-btn primary" onclick="resumeGame()">▶ DAVOM ETISH</button>
+  <button class="menu-btn" onclick="restartGame()">↺ QAYTA BOSHLASH</button>
+  <button class="menu-btn" onclick="goMainMenu()">⌂ BOSH MENYU</button>
+</div>
+
+<!-- ─── GAME OVER ────────────────────────────── -->
+<div id="gameOver">
+  <h2>GAME OVER</h2>
+  <p class="final-score">Yakuniy ball: <span id="finalScore">0</span></p>
+  <p class="final-score">Yig'ilgan olmos: <span id="finalGems">0</span></p>
+  <button class="menu-btn primary" onclick="restartGame()" style="margin-top:24px">↺ QAYTA O'YNASH</button>
+  <button class="menu-btn" onclick="goMainMenu()">⌂ BOSH MENYU</button>
+</div>
+
+<!-- ─── YUTISH EKRANI ──────────────────────── -->
+<div id="winScreen">
+  <h2>🏆 G'OLIB!</h2>
+  <p class="win-score">Barcha olmos yig'ildi! Ball: <span id="winScore">0</span></p>
+  <button class="menu-btn primary" onclick="restartGame()" style="margin-top:8px">↺ QAYTA O'YNASH</button>
+  <button class="menu-btn" onclick="goMainMenu()">⌂ BOSH MENYU</button>
+</div>
+
+<!-- Three.js canvas -->
+<canvas id="gameCanvas"></canvas>
+
+<!-- Three.js CDN -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+<script>
+/* ================================================================
+   O'YIN KODI — QADAMBA QADAM TUSHUNTIRMA
+
+   QADAM 1: Sahna (Scene) yaratish
+   QADAM 2: Kamera (Camera) o'rnatish
+   QADAM 3: Renderer o'rnatish
+   QADAM 4: Yoritish (Lighting) qo'shish
+   QADAM 5: Yer va osmon yaratish
+   QADAM 6: 3D Obyektlar (Cube, Cylinder, Sphere)
+   QADAM 7: Materiallar
+   QADAM 8: O'yinchi harakati (Physics)
+   QADAM 9: Collision Detection
+   QADAM 10: Kamera kuzatuvi
+   QADAM 11: Game Loop (animate)
+   ================================================================ */
+
+// ──────────────────────────────────────────────
+// O'YIN HOLATI (STATE)
+// ──────────────────────────────────────────────
+const state = {
+  running: false,
+  paused:  false,
+  score:   0,
+  health:  100,
+  energy:  80,
+  level:   1,
+  gemsCollected: 0,
+  totalGems: 10,
+};
+
+// ──────────────────────────────────────────────
+// QADAM 1: SAHNA YARATISH
+// Three.js'dagi Scene — Unity'dagi Hierarchy panel
+// Barcha obyektlar shu yerga qo'shiladi
+// ──────────────────────────────────────────────
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x0a0a1a); // Tungi osmon
+
+// Tumanlik (Fog) — masofadagi narsalar ko'rinmaydi
+scene.fog = new THREE.FogExp2(0x0a0a1a, 0.035);
+
+// ──────────────────────────────────────────────
+// QADAM 2: KAMERA O'RNATISH
+// PerspectiveCamera — inson ko'zi kabi 3D ko'rinish
+// Unity'dagi Main Camera ga mos
+// ──────────────────────────────────────────────
+const camera = new THREE.PerspectiveCamera(
+  60,                                    // FOV (Ko'rish burchagi)
+  window.innerWidth / window.innerHeight, // Aspect ratio
+  0.1,                                   // Near clipping plane
+  200                                    // Far clipping plane
+);
+camera.position.set(0, 6, 12);  // Kamera boshlang'ich joyi
+camera.lookAt(0, 0, 0);
+
+// ──────────────────────────────────────────────
+// QADAM 3: RENDERER O'RNATISH
+// WebGLRenderer — GPU orqali 3D chizish
+// Unity'dagi Game View ga mos
+// ──────────────────────────────────────────────
+const canvas = document.getElementById('gameCanvas');
+const renderer = new THREE.WebGLRenderer({
+  canvas,
+  antialias: true,  // Silliqlashtirish
+  alpha: false
+});
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;               // Soya yoqish
+renderer.shadowMap.type = THREE.PCFSoftShadowMap; // Yumshoq soyalar
+
+// ──────────────────────────────────────────────
+// QADAM 4: YORITISH (LIGHTING) QO'SHISH
+// Unity'dagi Lighting sozlamalari
+// ──────────────────────────────────────────────
+
+// Ambient Light — umumiy yoritish (hamma tomonga)
+const ambientLight = new THREE.AmbientLight(0x334466, 0.8);
+scene.add(ambientLight);
+
+// Directional Light — quyosh kabi yo'nalishli nur
+const dirLight = new THREE.DirectionalLight(0xffffff, 1.2);
+dirLight.position.set(10, 20, 10);
+dirLight.castShadow = true;
+dirLight.shadow.mapSize.width  = 2048;
+dirLight.shadow.mapSize.height = 2048;
+dirLight.shadow.camera.near = 0.5;
+dirLight.shadow.camera.far  = 100;
+dirLight.shadow.camera.left = dirLight.shadow.camera.bottom = -30;
+dirLight.shadow.camera.right = dirLight.shadow.camera.top   = 30;
+scene.add(dirLight);
+
+// Point Light — rangli nuqtaviy yoritish
+const pointLight1 = new THREE.PointLight(0x00d4ff, 2, 20);
+pointLight1.position.set(-5, 3, 0);
+scene.add(pointLight1);
+
+const pointLight2 = new THREE.PointLight(0xff006e, 2, 20);
+pointLight2.position.set(5, 3, -10);
+scene.add(pointLight2);
+
+const pointLight3 = new THREE.PointLight(0x7b2fff, 1.5, 15);
+pointLight3.position.set(0, 5, -20);
+scene.add(pointLight3);
+
+// ──────────────────────────────────────────────
+// QADAM 5: YER VA OSMON YARATISH
+// Unity'dagi Terrain + Skybox ga mos
+// ──────────────────────────────────────────────
+
+// YER (Ground Plane)
+// PlaneGeometry — tekis maydon
+const groundGeo  = new THREE.PlaneGeometry(100, 200, 20, 40);
+// MeshStandardMaterial — PBR (Physically Based Rendering) material
+const groundMat  = new THREE.MeshStandardMaterial({
+  color: 0x1a2a4a,        // Ko'k-to'q rang
+  roughness: 0.8,         // Dag'allik
+  metalness: 0.1,         // Metallik darajasi
+  wireframe: false
+});
+const ground = new THREE.Mesh(groundGeo, groundMat);
+ground.rotation.x = -Math.PI / 2;  // Gorizontal qilib burish
+ground.receiveShadow = true;        // Soya qabul qiladi
+ground.position.y = 0;
+scene.add(ground);
+
+// Grid chiziqlar — yerni ko'zga ko'rinarli qilish
+const gridHelper = new THREE.GridHelper(200, 50, 0x334466, 0x223355);
+gridHelper.position.y = 0.01;
+scene.add(gridHelper);
+
+// OSMON — yulduzlar bilan
+// Katta sphere ichida yulduz nuqtalari
+const starGeo = new THREE.BufferGeometry();
+const starCount = 2000;
+const positions = new Float32Array(starCount * 3);
+for (let i = 0; i < starCount * 3; i++) {
+  positions[i] = (Math.random() - 0.5) * 400;
+}
+starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+const starMat  = new THREE.PointsMaterial({ color: 0xffffff, size: 0.3 });
+const stars    = new THREE.Points(starGeo, starMat);
+scene.add(stars);
+
+// ──────────────────────────────────────────────
+// QADAM 6+7: 3D OBYEKTLAR VA MATERIALLAR
+// Unity'dagi 3D Object → Cube, Sphere, Cylinder
+// MeshStandardMaterial — PBR asosida material
+// ──────────────────────────────────────────────
+
+// Materiallar kutubxonasi
+const materials = {
+  red:    new THREE.MeshStandardMaterial({ color: 0xff4757, roughness: 0.3, metalness: 0.8 }),
+  blue:   new THREE.MeshStandardMaterial({ color: 0x00d4ff, roughness: 0.2, metalness: 0.9 }),
+  green:  new THREE.MeshStandardMaterial({ color: 0x2ed573, roughness: 0.4, metalness: 0.5 }),
+  purple: new THREE.MeshStandardMaterial({ color: 0x7b2fff, roughness: 0.3, metalness: 0.7 }),
+  orange: new THREE.MeshStandardMaterial({ color: 0xff9f43, roughness: 0.5, metalness: 0.4 }),
+  gold:   new THREE.MeshStandardMaterial({ color: 0xffd700, roughness: 0.1, metalness: 1.0, emissive: 0xffd700, emissiveIntensity: 0.3 }),
+  pink:   new THREE.MeshStandardMaterial({ color: 0xff6b81, roughness: 0.4, metalness: 0.6 }),
+  cyan:   new THREE.MeshStandardMaterial({ color: 0x64ffda, roughness: 0.2, metalness: 0.8, emissive: 0x00ffe0, emissiveIntensity: 0.2 }),
+};
+
+// To'siqlar va yig'iladigan narsalar massivlari
+const obstacles = [];
+const collectibles = [];
+
+/* -- To'siq yaratish funksiyasi -- */
+function createObstacle(type, x, z) {
+  let geo, mat, mesh;
+
+  if (type === 'cube') {
+    // QADAM 6a: KUB (BoxGeometry) — Unity'dagi Cube primitiv
+    geo = new THREE.BoxGeometry(2, 2, 2);
+    mat = materials.red.clone();
+    mesh = new THREE.Mesh(geo, mat);
+    mesh.scale.y = 0.8 + Math.random() * 1.5;
+
+  } else if (type === 'cylinder') {
+    // QADAM 6b: SILINDR (CylinderGeometry) — Unity'dagi Cylinder
+    geo = new THREE.CylinderGeometry(0.8, 0.8, 3, 12);
+    mat = materials.blue.clone();
+    mesh = new THREE.Mesh(geo, mat);
+
+  } else if (type === 'sphere') {
+    // QADAM 6c: SFERA (SphereGeometry) — Unity'dagi Sphere
+    geo = new THREE.SphereGeometry(1, 16, 16);
+    mat = materials.purple.clone();
+    mesh = new THREE.Mesh(geo, mat);
+
+  } else if (type === 'cone') {
+    geo = new THREE.ConeGeometry(1, 3, 8);
+    mat = materials.orange.clone();
+    mesh = new THREE.Mesh(geo, mat);
+
+  } else {
+    geo = new THREE.TorusGeometry(1, 0.4, 8, 16);
+    mat = materials.pink.clone();
+    mesh = new THREE.Mesh(geo, mat);
+  }
+
+  mesh.position.set(x, mesh.geometry.parameters.height/2 || 1, z);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+
+  // QADAM 5 — Collider: Unity'dagi BoxCollider/SphereCollider ni simulatsiya
+  mesh.userData = {
+    type: 'obstacle',
+    radius: 1.5,
+    meshType: type
+  };
+
+  scene.add(mesh);
+  obstacles.push(mesh);
+}
+
+/* -- Yig'iladigan olmos yaratish -- */
+function createGem(x, z) {
+  // OktahedronGeometry — olmos shakli
+  const geo  = new THREE.OctahedronGeometry(0.5, 0);
+  const mat  = new THREE.MeshStandardMaterial({
+    color: 0x64ffda,
+    roughness: 0.1,
+    metalness: 1.0,
+    emissive: 0x00ffe0,
+    emissiveIntensity: 0.5
+  });
+  const gem  = new THREE.Mesh(geo, mat);
+  gem.position.set(x, 1.5, z);
+  gem.castShadow = false;
+
+  // Yorug'lik nuri — olmos yorqin ko'rinsin
+  const glow = new THREE.PointLight(0x64ffda, 0.8, 4);
+  glow.position.copy(gem.position);
+  scene.add(glow);
+
+  gem.userData = { type: 'gem', light: glow, collected: false, radius: 0.8 };
+  scene.add(gem);
+  collectibles.push(gem);
+}
+
+/* -- Sahna to'ldirish -- */
+function populateScene() {
+  const types = ['cube','cylinder','sphere','cone','torus'];
+  const cols  = [-4, -2, 0, 2, 4];
+
+  for (let row = 0; row < 12; row++) {
+    const z = -8 - row * 8;
+    const used = new Set();
+    for (let k = 0; k < 2; k++) {
+      let col;
+      do { col = cols[Math.floor(Math.random()*cols.length)]; }
+      while (used.has(col));
+      used.add(col);
+      const type = types[Math.floor(Math.random()*types.length)];
+      createObstacle(type, col, z);
+    }
+
+    // Olmos qo'yish
+    if (row < state.totalGems) {
+      const freeCol = cols.filter(c=>!used.has(c));
+      if (freeCol.length > 0) {
+        createGem(freeCol[Math.floor(Math.random()*freeCol.length)], z);
+      }
+    }
+  }
+}
+
+// ──────────────────────────────────────────────
+// QADAM 8: O'YINCHI YARATISH VA HARAKATI
+// Unity'dagi Player GameObject + PlayerMovement.cs
+// ──────────────────────────────────────────────
+
+/* -- O'yinchi modeli -- */
+// Asosiy tana
+const playerBodyGeo = new THREE.BoxGeometry(0.8, 1.0, 0.8);
+const playerMat     = new THREE.MeshStandardMaterial({
+  color: 0x00d4ff, roughness: 0.2, metalness: 0.9,
+  emissive: 0x00d4ff, emissiveIntensity: 0.15
+});
+const playerBody = new THREE.Mesh(playerBodyGeo, playerMat);
+playerBody.castShadow = true;
+
+// Bosh
+const headGeo  = new THREE.SphereGeometry(0.35, 12, 12);
+const head     = new THREE.Mesh(headGeo, playerMat);
+head.position.y = 0.8;
+
+// Ko'zlar
+const eyeGeo = new THREE.SphereGeometry(0.07, 8, 8);
+const eyeMat = new THREE.MeshStandardMaterial({ color: 0xff006e, emissive: 0xff006e, emissiveIntensity: 1 });
+const eyeL   = new THREE.Mesh(eyeGeo, eyeMat);
+const eyeR   = new THREE.Mesh(eyeGeo, eyeMat);
+eyeL.position.set(-0.14, 0.85, 0.3);
+eyeR.position.set( 0.14, 0.85, 0.3);
+
+// O'yinchi guruhi (Unity'dagi Parent GameObject)
+const player = new THREE.Group();
+player.add(playerBody, head, eyeL, eyeR);
+player.position.set(0, 0.5, 0);
+scene.add(player);
+
+// O'yinchi energiya nuri
+const playerLight = new THREE.PointLight(0x00d4ff, 1, 5);
+player.add(playerLight);
+
+/* -- Harakat holatini kuzatish (Unity'dagi Input.GetAxis) -- */
+const keys = {};
+document.addEventListener('keydown', e => { keys[e.code] = true; });
+document.addEventListener('keyup',   e => { keys[e.code] = false; });
+
+// O'yinchi fizika parametrlari
+const playerPhysics = {
+  velocity:  new THREE.Vector3(0, 0, 0), // Tezlik vektori
+  speed:     6,     // Harakat tezligi (Unity'dagi speed = 5f)
+  jumpForce: 8,     // Sakrash kuchi
+  gravity:  -20,    // Tortishish kuchi (m/s²)
+  isGrounded: true, // Yerda turganmi?
+  groundY:    0.5,  // Yer balandligi
+  radius:     0.6,  // Collision radius
+};
+
+// ──────────────────────────────────────────────
+// QADAM 9: COLLISION DETECTION
+// Unity'dagi OnCollisionEnter / Physics.Overlap
+// ──────────────────────────────────────────────
+
+/* -- To'qnashuv tekshirish (AABB / Sphere Collision) -- */
+function checkCollisions() {
+  const px = player.position.x;
+  const pz = player.position.z;
+
+  // To'siqlar bilan to'qnashuv
+  obstacles.forEach(obs => {
+    const dx = px - obs.position.x;
+    const dz = pz - obs.position.z;
+    const dist = Math.sqrt(dx*dx + dz*dz);
+
+    if (dist < playerPhysics.radius + obs.userData.radius) {
+      // To'qnashdi! O'yinchi turtib chiqariladi
+      const pushDir = new THREE.Vector3(dx, 0, dz).normalize();
+      player.position.x += pushDir.x * 0.15;
+      player.position.z += pushDir.z * 0.15;
+      // Sog'liq kamayadi
+      takeDamage(0.1);
+    }
+  });
+
+  // Olmoslar bilan to'qnashuv
+  collectibles.forEach(gem => {
+    if (gem.userData.collected) return;
+    const dx = px - gem.position.x;
+    const dz = pz - gem.position.z;
+    const dist = Math.sqrt(dx*dx + dz*dz);
+
+    if (dist < playerPhysics.radius + gem.userData.radius) {
+      collectGem(gem);
+    }
+  });
+}
+
+/* -- Sog'liq kamaytirish -- */
+function takeDamage(amount) {
+  state.health = Math.max(0, state.health - amount);
+  document.getElementById('healthBar').style.width = state.health + '%';
+  if (state.health <= 0) triggerGameOver();
+}
+
+/* -- Olmos yig'ish -- */
+function collectGem(gem) {
+  gem.userData.collected = true;
+  gem.visible = false;
+  if (gem.userData.light) gem.userData.light.visible = false;
+  state.gemsCollected++;
+  state.score += 100;
+  updateHUD();
+  showMessage('💎 +100', 1000);
+
+  if (state.gemsCollected >= state.totalGems) triggerWin();
+}
+
+// ──────────────────────────────────────────────
+// QADAM 10: KAMERA KUZATUVI
+// Unity'dagi CameraFollow.cs skripti
+// Kamera doim o'yinchi ortidan yuradi
+// ──────────────────────────────────────────────
+const cameraOffset  = new THREE.Vector3(0, 6, 10);
+const cameraTarget  = new THREE.Vector3();
+const cameraDamping = 0.08; // Qancha sekin kuzatsin (0=qotib qoladi, 1=zudlik)
+
+function updateCamera() {
+  // Kamera maqsad joyi = o'yinchi joyi + offset
+  cameraTarget.copy(player.position).add(cameraOffset);
+  // Silliq (Lerp) harakatlanish
+  camera.position.lerp(cameraTarget, cameraDamping);
+  // Kamera o'yinchiga qaraydi
+  camera.lookAt(player.position.x, player.position.y + 1, player.position.z);
+}
+
+// ──────────────────────────────────────────────
+// HUD YANGILASH
+// ──────────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('scoreDisplay').textContent =
+    String(state.score).padStart(4, '0');
+  document.getElementById('levelDisplay').textContent = state.level;
+  document.getElementById('posDisplay').textContent =
+    `GEM: ${state.gemsCollected}/${state.totalGems}`;
+  document.getElementById('energyBar').style.width = state.energy + '%';
+}
+
+let msgTimer = null;
+function showMessage(text, duration) {
+  const el = document.getElementById('hudMessage');
+  el.textContent = text;
+  el.classList.add('show');
+  if (msgTimer) clearTimeout(msgTimer);
+  msgTimer = setTimeout(() => el.classList.remove('show'), duration || 1500);
+}
+
+// ──────────────────────────────────────────────
+// O'YIN HOLATLARI
+// ──────────────────────────────────────────────
+function startGame() {
+  document.getElementById('mainMenu').classList.add('hidden');
+  document.getElementById('hud').style.display = 'block';
+  state.running = true;
+  state.paused  = false;
+  showMessage('O\'YINNI BOSHLANG!', 2000);
+  updateHUD();
+}
+
+function triggerGameOver() {
+  state.running = false;
+  document.getElementById('finalScore').textContent = state.score;
+  document.getElementById('finalGems').textContent  = state.gemsCollected;
+  document.getElementById('gameOver').style.display = 'flex';
+}
+
+function triggerWin() {
+  state.running = false;
+  document.getElementById('winScore').textContent = state.score;
+  document.getElementById('winScreen').style.display = 'flex';
+}
+
+function restartGame() {
+  location.reload();
+}
+
+function goMainMenu() {
+  location.reload();
+}
+
+function resumeGame() {
+  state.paused = false;
+  document.getElementById('pauseMenu').style.display = 'none';
+}
+
+function showControls() {
+  showMessage('WASD/Arrows: Harakat | Space: Sakra | P: Pauza', 3000);
+}
+
+// Pause tugmasi
+document.addEventListener('keydown', e => {
+  if (e.code === 'KeyP' && state.running) {
+    state.paused = !state.paused;
+    document.getElementById('pauseMenu').style.display =
+      state.paused ? 'flex' : 'none';
+  }
+});
+
+// ──────────────────────────────────────────────
+// O'YINCHI HARAKAT LOGIKASI
+// Unity'dagi PlayerMovement.cs → void Update()
+// ──────────────────────────────────────────────
+function updatePlayer(dt) {
+  if (!state.running || state.paused) return;
+
+  const p = playerPhysics;
+
+  // Horizontal harakat (WASD / Arrow keys)
+  // Unity: float moveX = Input.GetAxis("Horizontal") * speed;
+  let moveX = 0, moveZ = 0;
+  if (keys['KeyW'] || keys['ArrowUp'])    moveZ = -1;
+  if (keys['KeyS'] || keys['ArrowDown'])  moveZ =  1;
+  if (keys['KeyA'] || keys['ArrowLeft'])  moveX = -1;
+  if (keys['KeyD'] || keys['ArrowRight']) moveX =  1;
+
+  // Normallashtirish — diagonal harakatda tez ketmasin
+  if (moveX !== 0 && moveZ !== 0) {
+    moveX *= 0.707; moveZ *= 0.707;
+  }
+
+  // Tezlik qo'llash
+  p.velocity.x = moveX * p.speed;
+  p.velocity.z = moveZ * p.speed;
+
+  // Sakrash — Unity: if (Input.GetKeyDown(KeyCode.Space) && isGrounded)
+  if ((keys['Space'] || keys['KeyJ']) && p.isGrounded) {
+    p.velocity.y  = p.jumpForce;
+    p.isGrounded  = false;
+    state.energy  = Math.max(0, state.energy - 5);
+    document.getElementById('energyBar').style.width = state.energy + '%';
+  }
+
+  // GRAVITY — FIZIKA (Unity'dagi Rigidbody + Use Gravity)
+  // v = v₀ + g·t
+  p.velocity.y += p.gravity * dt;
+
+  // Pozitsiya yangilash — Unity: transform.Translate
+  player.position.x += p.velocity.x * dt;
+  player.position.y += p.velocity.y * dt;
+  player.position.z += p.velocity.z * dt;
+
+  // YER BILAN TO'QNASHUV (Ground collision)
+  if (player.position.y <= p.groundY) {
+    player.position.y = p.groundY;
+    p.velocity.y      = 0;
+    p.isGrounded      = true;
+  }
+
+  // Chegara (o'yinchi chegaradan chiqmasin)
+  player.position.x = Math.max(-8, Math.min(8, player.position.x));
+
+  // O'yinchi yo'nalishi bo'yicha burish
+  if (moveX !== 0 || moveZ !== 0) {
+    const angle = Math.atan2(moveX, moveZ);
+    player.rotation.y = angle;
+  }
+
+  // Sakrash animatsiyasi — tana qisqarishi
+  const squash = p.isGrounded ? 1 : (1 + p.velocity.y * 0.02);
+  playerBody.scale.y = Math.max(0.6, Math.min(1.3, squash));
+
+  // Skor oshirish (oldinga ketgani uchun)
+  if (moveZ < 0) {
+    state.score += Math.floor(p.speed * dt * 2);
+    updateHUD();
+  }
+
+  // Energiya tiklash
+  if (state.energy < 100) {
+    state.energy = Math.min(100, state.energy + dt * 3);
+    document.getElementById('energyBar').style.width = state.energy + '%';
+  }
+
+  // Pozitsiya ko'rsatish
+  document.getElementById('posDisplay').textContent =
+    `GEM: ${state.gemsCollected}/${state.totalGems}`;
+}
+
+// ──────────────────────────────────────────────
+// ANIMATSIYALAR (Idle, Rotatsiya)
+// ──────────────────────────────────────────────
+function animateScene(time) {
+  // Olmoslar aylana va tepaga-pastga harakat
+  collectibles.forEach((gem, i) => {
+    if (gem.userData.collected) return;
+    gem.rotation.y = time * 2 + i;
+    gem.rotation.x = time * 1.5;
+    gem.position.y = 1.5 + Math.sin(time * 2 + i * 0.7) * 0.3;
+    if (gem.userData.light) {
+      gem.userData.light.position.copy(gem.position);
+    }
+  });
+
+  // To'siqlar yengil aylana
+  obstacles.forEach((obs, i) => {
+    obs.rotation.y += 0.005 * (i % 2 === 0 ? 1 : -1);
+  });
+
+  // Yulduzlar sekin aylana
+  stars.rotation.y = time * 0.01;
+
+  // Nuqtali yoritgichlar harakati
+  pointLight1.position.x = Math.sin(time * 0.5) * 8;
+  pointLight1.position.z = Math.cos(time * 0.5) * 8;
+  pointLight2.position.x = Math.cos(time * 0.7) * 10;
+  pointLight2.position.z = Math.sin(time * 0.7) * 10;
+}
+
+// ──────────────────────────────────────────────
+// QADAM 11: ASOSIY GAME LOOP (O'YIN TSIKLI)
+// Unity'dagi void Update() va void FixedUpdate()
+// ──────────────────────────────────────────────
+let lastTime = 0;
+function animate(timestamp) {
+  requestAnimationFrame(animate);
+
+  const time = timestamp / 1000; // sekundlarga o'tkazish
+  const dt   = Math.min(time - lastTime, 0.05); // Delta time (max 50ms)
+  lastTime   = time;
+
+  if (state.running && !state.paused) {
+    updatePlayer(dt);
+    checkCollisions();
+    updateCamera();
+    animateScene(time);
+  }
+
+  // Sahna render qilish — Unity'dagi Camera.Render()
+  renderer.render(scene, camera);
+}
+
+// ──────────────────────────────────────────────
+// OYNA O'LCHAMINI O'ZGARTIRISH
+// ──────────────────────────────────────────────
+window.addEventListener('resize', () => {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// ──────────────────────────────────────────────
+// O'YIN BOSHLASH
+// ──────────────────────────────────────────────
+populateScene();  // Sahna to'ldirish
+
+// Loading tugagach bosh menyu ko'rsatish
+setTimeout(() => {
+  document.getElementById('loadingScreen').style.opacity = '0';
+  setTimeout(() => {
+    document.getElementById('loadingScreen').style.display = 'none';
+    document.getElementById('mainMenu').classList.remove('hidden');
+  }, 800);
+}, 2200);
+
+animate(0); // O'yin tsiklini boshlash
+</script>
+</body>
+</html>
